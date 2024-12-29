@@ -1,5 +1,9 @@
 local M = {}
 
+local options = {
+    connection_flags = "-I edgedb_mcp"
+}
+
 M.setup = function()
     -- Nothing here for now
 end
@@ -17,11 +21,21 @@ local get_selection = function()
 
     local query = vim.api.nvim_buf_get_text(buf, start_row, start_col, end_row, end_col, {})
     vim.cmd("normal! gv") -- restore visual mode again
-    print(table.concat(query, "\n"))
+
+    return query
 end
 
 local execute_query = function(query)
-    -- Run a query against local Gel project
+    -- Run a query against Gel instance
+    local result       = vim.system({ "edgedb", "query", "-I", "edgedb_mcp", query },
+            { text = true })
+        :wait()
+
+    local out          = vim.split(result.stdout, "\n")
+    local err          = vim.split(result.stderr, "\n")
+    for _, line in ipairs(err) do table.insert(out, line) end
+
+    return out
 end
 
 local open_float = function(config, enter)
@@ -68,9 +82,9 @@ local create_ui = function()
         output = {
             relative = "editor",
             height = ui_height,
-            width = math.floor(ui_width / 2) - 1,
+            width = math.floor(ui_width / 2) - 2,
             row = top_row,
-            col = math.floor(left_col + ui_width / 2) + 1,
+            col = math.floor(left_col + ui_width / 2) + 2,
             style = "minimal",
             border = "rounded",
             title = "Output",
@@ -93,13 +107,44 @@ local create_ui = function()
             pcall(vim.api.nvim_buf_delete, output_float.buf, { force = true })
         end
     })
+
+    vim.keymap.set("n", "<Esc>", function()
+        vim.cmd("quit")
+    end, { buffer = params_float.buf })
+
+    return {
+        query = query_float,
+        params = params_float,
+        output = output_float,
+    }
 end
 
+
+local execute_selection = function()
+    local query = get_selection()
+
+    -- Remove quotes and whitespaces
+    local stripped_query = string.match(table.concat(query, "\n"), "^[ \"\']*(.-)[ \"\']*$")
+    query = vim.split(stripped_query, "\n")
+
+    local floats = create_ui()
+
+    vim.api.nvim_buf_set_text(floats.query.buf, 0, 0, -1, -1, query)
+    local concat_query = table.concat(query, "\n")
+    local output = execute_query(concat_query)
+    vim.api.nvim_buf_set_text(floats.output.buf, 0, 0, -1, -1, output)
+end
+
+
+local test_query = [[
+with a := 1
+select 1 + 1;
+]]
+
 -- vim.keymap.set("v", "<leader>eq", get_selection)
-vim.keymap.set("v", "<leader>eee", create_ui)
+vim.keymap.set("v", "<space>ex", execute_selection)
 
 
-create_ui()
-
+-- execute_selection()
 
 return M
