@@ -8,6 +8,16 @@ M.setup = function()
     -- Nothing here for now
 end
 
+
+---@class gel_query.Param
+---@field type string
+---@field name string
+
+---@class gel_query.Float
+---@field buf integer
+---@field win integer
+
+
 local get_selection = function()
     vim.cmd("normal! gv") -- restore visual mode because it gets lost and messes up the selection
 
@@ -25,6 +35,7 @@ local get_selection = function()
     return query
 end
 
+---@param query string
 local execute_query = function(query)
     -- Run a query against Gel instance
     local result = vim.system({ "edgedb", "query", "-I", "edgedb_mcp", query },
@@ -50,14 +61,15 @@ local open_float = function(config, enter)
     return { buf = buf, win = win }
 end
 
-
+---@param floats table{string, gel_query.Float}
+---@param callback fun(name: string, float: gel_query.Float)
 local foreach_float = function(floats, callback)
     for name, float in pairs(floats) do
         callback(name, float)
     end
 end
 
-
+---@return table{string, gel_query.Float}
 local create_ui = function()
     local ui_height = math.floor(vim.o.lines * 0.8)
     local ui_width = math.floor(vim.o.columns * 0.8)
@@ -127,6 +139,31 @@ local create_ui = function()
     return floats
 end
 
+---@param query string
+---@return gel_query.Param[]
+local find_params = function(query)
+    local pattern = "<(.-)>$(%w+)"
+    local params = {}
+
+    for param_type, param_name in string.gmatch(query, pattern) do
+        table.insert(params, { type = param_type, name = param_name })
+    end
+
+    return params
+end
+
+
+local insert_params = function(query, params, param_values)
+    -- Parse input values for params
+
+
+    -- Replace placeholders with values
+
+    local pattern = "<(.-)>$(%w+)"
+    local subbed_query = string.gsub(query, pattern, param_values)
+end
+
+
 local execute_selection = function()
     local query = get_selection()
 
@@ -138,6 +175,16 @@ local execute_selection = function()
 
     vim.api.nvim_buf_set_text(floats.query.buf, 0, 0, -1, -1, query)
     local concat_query = table.concat(query, "\n")
+
+    local params = find_params(concat_query)
+    local display_params = {}
+
+    for _, param in ipairs(params) do
+        table.insert(display_params, string.format("(%s) %s =  ", param.type, param.name))
+    end
+
+    vim.api.nvim_buf_set_text(floats.params.buf, 0, 0, -1, -1, display_params)
+
 
     foreach_float(floats, function(_, float)
         vim.keymap.set("n", "X", function()
@@ -152,7 +199,7 @@ end
 
 local test_query = [[
 with a := 1
-select 1 + 1;
+select a + <int64>$a + <int64>$b;
 ]]
 
 -- vim.keymap.set("v", "<leader>eq", get_selection)
