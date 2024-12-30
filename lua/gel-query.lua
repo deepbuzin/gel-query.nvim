@@ -27,13 +27,14 @@ end
 
 local execute_query = function(query)
     -- Run a query against Gel instance
-    local result       = vim.system({ "edgedb", "query", "-I", "edgedb_mcp", query },
+    local result = vim.system({ "edgedb", "query", "-I", "edgedb_mcp", query },
             { text = true })
         :wait()
 
-    local out          = vim.split(result.stdout, "\n")
-    local err          = vim.split(result.stderr, "\n")
-    for _, line in ipairs(err) do table.insert(out, line) end
+    local out    = vim.split(result.stdout, "\n")
+    local err    = vim.split(result.stderr, "\n")
+
+    for _, line in ipairs(out) do table.insert(err, line) end
 
     return out
 end
@@ -48,6 +49,14 @@ local open_float = function(config, enter)
 
     return { buf = buf, win = win }
 end
+
+
+local foreach_float = function(floats, callback)
+    for name, float in pairs(floats) do
+        callback(name, float)
+    end
+end
+
 
 local create_ui = function()
     local ui_height = math.floor(vim.o.lines * 0.8)
@@ -92,33 +101,31 @@ local create_ui = function()
         }
     }
 
-    local query_float = open_float(configs.query)
-    local params_float = open_float(configs.params, true)
-    local output_float = open_float(configs.output)
-
-    vim.api.nvim_create_autocmd("BufLeave", {
-        buffer = params_float.buf,
-        callback = function()
-            pcall(vim.api.nvim_win_close, query_float.win, true)
-            pcall(vim.api.nvim_win_close, output_float.win, true)
-
-            pcall(vim.api.nvim_buf_delete, query_float.buf, { force = true })
-            pcall(vim.api.nvim_buf_delete, params_float.buf, { force = true })
-            pcall(vim.api.nvim_buf_delete, output_float.buf, { force = true })
-        end
-    })
-
-    vim.keymap.set("n", "<Esc>", function()
-        vim.cmd("quit")
-    end, { buffer = params_float.buf })
-
-    return {
-        query = query_float,
-        params = params_float,
-        output = output_float,
+    local floats = {
+        query = open_float(configs.query),
+        params = open_float(configs.params, true),
+        output = open_float(configs.output),
     }
-end
 
+    foreach_float(floats, function(_, float)
+        -- Quit all three windows in case one of them gets closed
+        vim.api.nvim_create_autocmd("WinClosed", {
+            buffer = float.buf,
+            callback = function()
+                foreach_float(floats, function(_, other_float)
+                    pcall(vim.api.nvim_win_close, other_float.win, true)
+                    pcall(vim.api.nvim_buf_delete, other_float.buf, { force = true })
+                end)
+            end
+        })
+
+        vim.keymap.set("n", "<Esc>", function()
+            vim.cmd("quit")
+        end, { buffer = float.buf })
+    end)
+
+    return floats
+end
 
 local execute_selection = function()
     local query = get_selection()
@@ -131,9 +138,16 @@ local execute_selection = function()
 
     vim.api.nvim_buf_set_text(floats.query.buf, 0, 0, -1, -1, query)
     local concat_query = table.concat(query, "\n")
-    local output = execute_query(concat_query)
-    vim.api.nvim_buf_set_text(floats.output.buf, 0, 0, -1, -1, output)
+
+    foreach_float(floats, function(_, float)
+        vim.keymap.set("n", "X", function()
+            local output = execute_query(concat_query)
+            vim.api.nvim_buf_set_text(floats.output.buf, 0, 0, -1, -1, output)
+        end, { buffer = float.buf })
+    end)
 end
+
+
 
 
 local test_query = [[
