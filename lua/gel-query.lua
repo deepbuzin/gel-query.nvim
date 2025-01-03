@@ -69,6 +69,13 @@ local foreach_float = function(floats, callback)
     end
 end
 
+local table_extend = function(left, right)
+    for _, line in ipairs(right) do
+        table.insert(left, line)
+    end
+    return left
+end
+
 ---@return table{string, gel_query.Float}
 local create_ui = function()
     local ui_height = math.floor(vim.o.lines * 0.8)
@@ -153,14 +160,26 @@ local find_params = function(query)
 end
 
 
-local insert_params = function(query, params, param_values)
+local insert_params = function(query, text_params)
     -- Parse input values for params
+    local input_pattern = "(%w-) = (.+)"
+    local params = {}
 
+    for _, line in ipairs(text_params) do
+        for name, value in string.gmatch(line, input_pattern) do
+            params[name] = value
+        end
+    end
+
+    local rendered_query = query
 
     -- Replace placeholders with values
+    for name, value in pairs(params) do
+        local query_pattern = string.format("<.->$%s", name)
+        rendered_query = string.gsub(rendered_query, query_pattern, value)
+    end
 
-    local pattern = "<(.-)>$(%w+)"
-    local subbed_query = string.gsub(query, pattern, param_values)
+    return rendered_query
 end
 
 
@@ -188,7 +207,12 @@ local execute_selection = function()
 
     foreach_float(floats, function(_, float)
         vim.keymap.set("n", "X", function()
-            local output = execute_query(concat_query)
+            local text_params = vim.api.nvim_buf_get_text(floats.params.buf, 0, 0, -1, -1, {})
+            local rendered_query = insert_params(concat_query, text_params)
+
+            local output = {}
+            output = table_extend(output, vim.split(rendered_query, "\n"))
+            output = table_extend(output, execute_query(rendered_query))
             vim.api.nvim_buf_set_text(floats.output.buf, 0, 0, -1, -1, output)
         end, { buffer = float.buf })
     end)
