@@ -146,7 +146,7 @@ local create_ui = function()
 
     vim.bo[floats.query.buf].filetype = "edgeql"
     vim.bo[floats.params.buf].filetype = "conf"
-    vim.bo[floats.output.buf].filetype = "json"
+    vim.bo[floats.output.buf].filetype = "markdown"
 
     return floats
 end
@@ -181,7 +181,7 @@ local insert_params = function(query, text_params)
     -- Replace placeholders with values
     for name, value in pairs(params) do
         local query_pattern = string.format("<.->$%s", name)
-        rendered_query = string.gsub(rendered_query, query_pattern, value)
+        rendered_query = string.gsub(rendered_query, query_pattern, vim.trim(value))
     end
 
     return rendered_query
@@ -189,7 +189,7 @@ end
 
 
 local execute_selection = function()
-    local query = get_selection()  -- this query is a list of lines
+    local query = get_selection() -- this query is a list of lines
 
     -- Remove quotes and whitespaces
     local stripped_query = string.match(table.concat(query, "\n"), "^[ \"\']*(.-)[ \"\']*$")
@@ -217,8 +217,14 @@ local execute_selection = function()
             local rendered_query = insert_params(concat_query, text_params)
 
             local output = {}
+
+            output = table_extend(output, { "### Rendered query", "", "```edgeql" })
             output = table_extend(output, vim.split(rendered_query, "\n"))
+            output = table_extend(output, { "```" })
+
+            output = table_extend(output, { "", "### Gel output", "", "```json" })
             output = table_extend(output, execute_query(rendered_query))
+            output = table_extend(output, { "```" })
             vim.api.nvim_buf_set_text(floats.output.buf, 0, 0, -1, -1, output)
         end, { buffer = float.buf })
     end)
