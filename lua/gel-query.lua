@@ -18,6 +18,7 @@ end
 ---@field win integer
 
 
+---@return string[]
 local get_selection = function()
     vim.cmd("normal! gv") -- restore visual mode because it gets lost and messes up the selection
 
@@ -143,6 +144,10 @@ local create_ui = function()
         end, { buffer = float.buf })
     end)
 
+    vim.bo[floats.query.buf].filetype = "edgeql"
+    vim.bo[floats.params.buf].filetype = "conf"
+    vim.bo[floats.output.buf].filetype = "json"
+
     return floats
 end
 
@@ -184,7 +189,7 @@ end
 
 
 local execute_selection = function()
-    local query = get_selection()
+    local query = get_selection()  -- this query is a list of lines
 
     -- Remove quotes and whitespaces
     local stripped_query = string.match(table.concat(query, "\n"), "^[ \"\']*(.-)[ \"\']*$")
@@ -193,6 +198,8 @@ local execute_selection = function()
     local floats = create_ui()
 
     vim.api.nvim_buf_set_text(floats.query.buf, 0, 0, -1, -1, query)
+
+    -- Parse params from the query
     local concat_query = table.concat(query, "\n")
 
     local params = find_params(concat_query)
@@ -203,7 +210,6 @@ local execute_selection = function()
     end
 
     vim.api.nvim_buf_set_text(floats.params.buf, 0, 0, -1, -1, display_params)
-
 
     foreach_float(floats, function(_, float)
         vim.keymap.set("n", "X", function()
