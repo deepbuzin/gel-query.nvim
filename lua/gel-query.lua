@@ -214,7 +214,8 @@ local execute_selection = function()
     foreach_float(floats, function(_, float)
         vim.keymap.set("n", "X", function()
             local text_params = vim.api.nvim_buf_get_text(floats.params.buf, 0, 0, -1, -1, {})
-            local rendered_query = insert_params(concat_query, text_params)
+            local edited_query = table.concat(vim.api.nvim_buf_get_text(floats.query.buf, 0, 0, -1, -1, {}), "\n")
+            local rendered_query = insert_params(edited_query, text_params)
 
             local output = {}
 
