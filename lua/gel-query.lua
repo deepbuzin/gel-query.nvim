@@ -1,5 +1,9 @@
 local M = {}
 
+local state = {
+    param_values = {},
+}
+
 local options = {
     connection_flags = "-I edgedb_mcp"
 }
@@ -165,7 +169,7 @@ local find_params = function(query)
 end
 
 
-local insert_params = function(query, text_params)
+local parse_params = function (text_params)
     -- Parse input values for params
     local input_pattern = "(%w-) = (.+)"
     local params = {}
@@ -176,6 +180,11 @@ local insert_params = function(query, text_params)
         end
     end
 
+    return params
+end
+
+
+local insert_params = function(query, params)
     local rendered_query = query
 
     -- Replace placeholders with values
@@ -206,7 +215,13 @@ local execute_selection = function()
     local display_params = {}
 
     for _, param in ipairs(params) do
-        table.insert(display_params, string.format("(%s) %s =  ", param.type, param.name))
+        local param_value = ""
+
+        if state.param_values[param.name] ~= nil then
+            param_value = state.param_values[param.name]
+        end
+
+        table.insert(display_params, string.format("(%s) %s = %s", param.type, param.name, param_value))
     end
 
     vim.api.nvim_buf_set_text(floats.params.buf, 0, 0, -1, -1, display_params)
@@ -214,8 +229,10 @@ local execute_selection = function()
     foreach_float(floats, function(_, float)
         vim.keymap.set("n", "X", function()
             local text_params = vim.api.nvim_buf_get_text(floats.params.buf, 0, 0, -1, -1, {})
+            state.param_values = parse_params(text_params)
+
             local edited_query = table.concat(vim.api.nvim_buf_get_text(floats.query.buf, 0, 0, -1, -1, {}), "\n")
-            local rendered_query = insert_params(edited_query, text_params)
+            local rendered_query = insert_params(edited_query, state.param_values)
 
             local output = {}
 
@@ -230,7 +247,6 @@ local execute_selection = function()
         end, { buffer = float.buf })
     end)
 end
-
 
 
 
