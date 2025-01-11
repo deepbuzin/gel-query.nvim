@@ -103,13 +103,24 @@ local create_ui = function()
         },
         params = {
             relative = "editor",
-            height = math.floor(ui_height / 2) - 1, -- offset for border
+            height = math.floor(ui_height / 2) - 1 - 3, -- offset for border
             width = math.floor(ui_width / 2) - 1,
             row = math.floor(top_row + ui_height / 2) + 1,
             col = left_col,
             style = "minimal",
             border = "rounded",
             title = "Params",
+            title_pos = "center",
+        },
+        connection = {
+            relative = "editor",
+            height = 1,
+            width = math.floor(ui_width / 2) - 1,
+            row = math.floor(top_row + ui_height) - 1,
+            col = left_col,
+            style = "minimal",
+            border = "rounded",
+            title = "Connection",
             title_pos = "center",
         },
         output = {
@@ -128,6 +139,7 @@ local create_ui = function()
     local floats = {
         query = open_float(configs.query),
         params = open_float(configs.params, true),
+        connection = open_float(configs.connection),
         output = open_float(configs.output),
     }
 
