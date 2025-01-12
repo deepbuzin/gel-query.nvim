@@ -2,10 +2,7 @@ local M = {}
 
 local state = {
     param_values = {},
-}
-
-local options = {
-    connection_flags = "-I edgedb_mcp"
+    connection_opts = {},
 }
 
 M.setup = function()
@@ -40,16 +37,24 @@ local get_selection = function()
     return query
 end
 
+
+local table_extend = function(left, right)
+    for _, line in ipairs(right) do
+        table.insert(left, line)
+    end
+    return left
+end
+
+
 ---@param query string
 ---@param connection_opts string[]
 local execute_query = function(query, connection_opts)
     -- Run a query against Gel instance
-    local result = vim.system({ "edgedb", "query", "-I", "edgedb_mcp", query },
-            { text = true })
-        :wait()
+    local command = table_extend({ "edgedb", "query" }, connection_opts)
+    local result  = vim.system(table_extend(command, { query }), { text = true }):wait()
 
-    local out    = vim.split(result.stdout, "\n")
-    local err    = vim.split(result.stderr, "\n")
+    local out     = vim.split(result.stdout, "\n")
+    local err     = vim.split(result.stderr, "\n")
 
     for _, line in ipairs(out) do table.insert(err, line) end
 
@@ -75,12 +80,6 @@ local foreach_float = function(floats, callback)
     end
 end
 
-local table_extend = function(left, right)
-    for _, line in ipairs(right) do
-        table.insert(left, line)
-    end
-    return left
-end
 
 ---@return table{string, gel_query.Float}
 local create_ui = function()
@@ -138,10 +137,10 @@ local create_ui = function()
     }
 
     local floats = {
-        query = open_float(configs.query),
-        params = open_float(configs.params, true),
-        connection = open_float(configs.connection),
         output = open_float(configs.output),
+        query = open_float(configs.query),
+        connection = open_float(configs.connection),
+        params = open_float(configs.params, true),
     }
 
     foreach_float(floats, function(_, float)
@@ -238,17 +237,20 @@ local execute_selection = function()
     end
 
     vim.api.nvim_buf_set_text(floats.params.buf, 0, 0, -1, -1, display_params)
-
-    local connection_opts = { "-I", "edgedb_mcp" }
-    vim.api.nvim_buf_set_text(floats.connection.buf, 0, 0, -1, -1, { table.concat(connection_opts, " ") })
+    vim.api.nvim_buf_set_text(floats.connection.buf, 0, 0, -1, -1, { table.concat(state.connection_opts, " ") })
 
     foreach_float(floats, function(_, float)
         vim.keymap.set("n", "X", function()
             local text_params = vim.api.nvim_buf_get_text(floats.params.buf, 0, 0, -1, -1, {})
             state.param_values = parse_params(text_params)
 
+            local connection_string = vim.api.nvim_buf_get_text(floats.connection.buf, 0, 0, -1, -1, {})[1]
+            state.connection_opts = vim.split(connection_string, " ")
+
             local edited_query = table.concat(vim.api.nvim_buf_get_text(floats.query.buf, 0, 0, -1, -1, {}), "\n")
             local rendered_query = insert_params(edited_query, state.param_values)
+
+            local query_result = execute_query(rendered_query, state.connection_opts)
 
             local output = {}
 
@@ -257,7 +259,7 @@ local execute_selection = function()
             output = table_extend(output, { "```" })
 
             output = table_extend(output, { "", "### Gel output", "", "```json" })
-            output = table_extend(output, execute_query(rendered_query))
+            output = table_extend(output, query_result)
             output = table_extend(output, { "```" })
             vim.api.nvim_buf_set_text(floats.output.buf, 0, 0, -1, -1, output)
         end, { buffer = float.buf })
