@@ -41,7 +41,8 @@ local get_selection = function()
 end
 
 ---@param query string
-local execute_query = function(query)
+---@param connection_opts string[]
+local execute_query = function(query, connection_opts)
     -- Run a query against Gel instance
     local result = vim.system({ "edgedb", "query", "-I", "edgedb_mcp", query },
             { text = true })
@@ -181,7 +182,7 @@ local find_params = function(query)
 end
 
 
-local parse_params = function (text_params)
+local parse_params = function(text_params)
     -- Parse input values for params
     local input_pattern = "(%w-) = (.+)"
     local params = {}
@@ -237,6 +238,9 @@ local execute_selection = function()
     end
 
     vim.api.nvim_buf_set_text(floats.params.buf, 0, 0, -1, -1, display_params)
+
+    local connection_opts = { "-I", "edgedb_mcp" }
+    vim.api.nvim_buf_set_text(floats.connection.buf, 0, 0, -1, -1, { table.concat(connection_opts, " ") })
 
     foreach_float(floats, function(_, float)
         vim.keymap.set("n", "X", function()
