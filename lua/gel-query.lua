@@ -279,4 +279,8 @@ vim.keymap.set("v", "<space>ex", execute_selection)
 
 -- execute_selection()
 
+M._find_params = find_params
+M._insert_params = insert_params
+M.execute_selection = execute_selection
+
 return M
