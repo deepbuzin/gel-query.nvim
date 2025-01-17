@@ -201,7 +201,8 @@ local insert_params = function(query, params)
 
     -- Replace placeholders with values
     for name, value in pairs(params) do
-        local query_pattern = string.format("<.->$%s", name)
+        local query_pattern = string.format("<[^>]+>$%s", name)
+
         rendered_query = string.gsub(rendered_query, query_pattern, vim.trim(value))
     end
 
